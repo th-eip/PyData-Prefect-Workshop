@@ -55,6 +55,7 @@ def lowercase_text(text: str) -> str:
 # <-- START HERE
 # CONVERT THESE FUNCTIONS INTO PREFECT TASKS ...
 
+@task(name="strip_url")
 def strip_url(text: str) -> str:
     """
     Replace web addresses in the text with the placeholder 'WEBADDRESS'.
@@ -69,7 +70,7 @@ def strip_url(text: str) -> str:
     clean_text = re.sub(pattern, 'WEBADDRESS', text)
     return clean_text
 
-
+@task(name="strip_user")
 def strip_user(text: str) -> str:
     """
     Replace user handles (mentions) in the text with the placeholder 'USERHANDLE'.
@@ -114,7 +115,7 @@ def lemmatize_text(text: str) -> str:
     return ' '.join(words)
 
 # Now create a data processing flow using the tasks from above!
-
+@flow
 def process_text(text: str) -> str:
     """
     Pre-process text for sentiment analysis by converting to lowercase, stripping URLs and user handles, 
@@ -128,12 +129,12 @@ def process_text(text: str) -> str:
     """
     logger = get_run_logger()
     logger.info("%s Cleaning text: ", text)   
-    # TO BE FILLED IN WITH RELEVANT PROCESSING STEPS
-    # MAKE SURE YOU HAVE ADDED APPROPRIATE DECORATORS TO YOUR STEPS
-    # DO YOU WANT TO GIVE THEM NAMES?
-    # FEEL FREE TO EXPERIMENT
-    logger.info(f" Clean text: {text}")
-    return text
+    text_cleaned = lowercase_text(text)
+    text_cleaned = replace_emoji(text_cleaned)
+    text_cleaned = strip_url(text_cleaned)
+    text_cleaned = strip_user(text_cleaned)
+    logger.info(f" Clean text: {text_cleaned}")
+    return text_cleaned
 
 # <- Compulsory edits END here, but inspect the functions below
 

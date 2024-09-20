@@ -13,9 +13,10 @@ from config.mongodb_config import MONGO_URI, DB_NAME
 from e02b_sentiment_pipeline_v2 import sentiment_analysis
 
 KAFKA_TOPIC_AIRLINES = "raw_airline_tweet"
+MONGO_COLLECTION = "sentiment_airline_tweets"
 
-# DO NOT EDIT
-def get_mongo_db(uri: str) -> MongoClient:
+
+def get_mongo_db(uri: str = MONGO_URI) -> MongoClient:
     """
     Returns a MongoDB client connected to the specified URI.
     
@@ -28,7 +29,7 @@ def get_mongo_db(uri: str) -> MongoClient:
     client = MongoClient(uri, server_api=ServerApi('1'))
     return client
 
-# DO NOT EDIT
+
 def get_kafka_consumer(kafka_topic: str) -> KafkaConsumer:
     """
     Returns a Kafka consumer configured for the specified topic.
@@ -48,7 +49,7 @@ def get_kafka_consumer(kafka_topic: str) -> KafkaConsumer:
     )
     return consumer
 
-# DO NOT EDIT
+
 @task(name="Write Message to MongoDB", description="Writes a record to MongoDB.")
 def write_msg_to_mongo(record: dict, client: MongoClient) -> None:
     """
@@ -61,12 +62,12 @@ def write_msg_to_mongo(record: dict, client: MongoClient) -> None:
     Returns:
         None
     """
-    db = client["Prefect-tutorial"]
-    collection = db["sentiment_airline_tweets"]
+    db = client[DB_NAME]
+    collection = db[MONGO_COLLECTION]
     collection.insert_one(record)
 
 
-@task(name="Label Sentiment") # Add a description
+@task(name="Label Sentiment", description="Labels sentiment based on the sentiment score.")
 def label_sentiment(score: float) -> str:
     """
     Labels sentiment based on the sentiment score.
@@ -77,9 +78,9 @@ def label_sentiment(score: float) -> str:
     Returns:
         str: The sentiment label.
     """
-    if score > # Set your thresholds:
+    if score > 0.15:
         label = "positive"
-    elif score < #Set your  thresholds:
+    elif score < -0.15:
         label = "negative"
     else:
         label = "neutral"
@@ -88,7 +89,7 @@ def label_sentiment(score: float) -> str:
     
 
 
-@task #Add any parameters you need 
+@task(name="Consume Airline Tweets", description="Consumes airline tweets from Kafka, processes them, and stores them in MongoDB.")
 def consume_airline_tweets(kafka_topic: str = KAFKA_TOPIC_AIRLINES):
     """
     Consumes airline tweets from Kafka, processes them, and stores them in MongoDB.
@@ -96,7 +97,7 @@ def consume_airline_tweets(kafka_topic: str = KAFKA_TOPIC_AIRLINES):
     Args:
         kafka_topic (str): The Kafka topic to consume messages from.
     """
-    _MONGO_URI = "" # Load the Secret from the password Block
+    _MONGO_URI = Secret.load("mongo-db-uri").get()
     client = get_mongo_db(_MONGO_URI)
     consumer = get_kafka_consumer(kafka_topic)
     print(f"Starting to consume messages from Kafka topic: {kafka_topic}")
@@ -105,13 +106,10 @@ def consume_airline_tweets(kafka_topic: str = KAFKA_TOPIC_AIRLINES):
         poll_result = consumer.poll(timeout_ms=5000)
         for _, messages in poll_result.items():
             for msg in messages:
-                sentiment_score = 0 # You need to process the tweet content field that is in the message, take a look at a message
-                # example by using your browser at https://localhost:8000/get_tweet
-                # tip: you need to process msg.value to get to the python dictionary
+                sentiment_score = sentiment_analysis(msg.value.get("text", ""))
                 sentiment_label = label_sentiment(sentiment_score)
-                new_msg = {}# Take all of the raw message fields and add the additional sentiment data before pushing this to Mongo
-                            # new_msg needs to be a dictionary
-                write_msg_to_mongo(new_msg, client=client)
+                msg.value.update({"sentiment_score": sentiment_score, "sentiment_label": sentiment_label})
+                write_msg_to_mongo(msg.value, client=client)
                 print(f"Processed message: {msg.value}")
 
 @flow(name="Monitor Airline Tweets", description="Monitors airline tweets and processes them every 30 seconds.", log_prints=True)

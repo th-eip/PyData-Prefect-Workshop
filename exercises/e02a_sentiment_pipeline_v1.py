@@ -1,9 +1,10 @@
+from prefect import flow, task, get_run_logger
+
 from pathlib import Path
 import re
 
 import numpy as np
 import pandas as pd
-
 import spacy
 from spacytextblob.spacytextblob import SpacyTextBlob
 from nltk.stem import WordNetLemmatizer
@@ -66,8 +67,7 @@ def lowercase_text(text: str) -> str:
     Returns:
         str: The text converted to lowercase with leading/trailing whitespace removed.
     """
-    ### TO BE IMPLEMENTED PROPERLY
-    return text
+    return text.lower().strip()
 
 
 def strip_url(text: str) -> str:

@@ -78,6 +78,11 @@ if __name__ == "__main__":
     # Creates a deployment and stays running to monitor for work instructions generated on the server
     # Edit the fields appropriately
     stream_airline_tweet_to_kafka.serve(
-        # ADD THE REQUIRED PARAMETERS HERE ...
-        )
-                      
+        name="Airline Tweets Stream to Kafka",
+        tags=["raw", "airline-api", "kafka"],
+        parameters={
+            "tweet_url": AIRLINE_URL+"/get_tweet", 
+            "kafka_topic": KAFKA_TOPIC
+            },
+        interval=1.5
+        )           
